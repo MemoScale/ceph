@@ -23,6 +23,8 @@
  */ 
 
 #include <vector>
+#include <list>
+#include <utility>
 
 #include "ErasureCodeInterface.h"
 
@@ -60,6 +62,11 @@ namespace ceph {
                                             const map<int, int> &available,
                                             set<int> *minimum);
 
+    virtual int minimum_to_decode_subpackets(const set<int> &want_to_read,
+					    const set<int> &available_chunks,
+					    map<int, list<pair<int, int>>> *minimum,
+					    int blocksize);
+
     int encode_prepare(const bufferlist &raw,
                        map<int, bufferlist> &encoded) const;
 
@@ -77,6 +84,10 @@ namespace ceph {
     virtual int decode_chunks(const set<int> &want_to_read,
                               const map<int, bufferlist> &chunks,
                               map<int, bufferlist> *decoded);
+
+    virtual int decode_subpackets(const set<int> &want_to_read,
+				  map<int, pair<bufferlist, list<pair<int, int>>>> &subpackets,
+				  map<int, bufferlist> *decoded);
 
     virtual const vector<int> &get_chunk_mapping() const;
 

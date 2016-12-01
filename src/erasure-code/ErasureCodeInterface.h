@@ -315,7 +315,68 @@ namespace ceph {
     virtual int minimum_to_decode_with_cost(const set<int> &want_to_read,
                                             const map<int, int> &available,
                                             set<int> *minimum) = 0;
+    
+    /**
+    * Compute the smallest subset of **available** subpackets that needs
+    * to be retrieved in order to successfully decode **want_to_read** chunks.
+    * We assume that it is only possible to lose full chunks, so that if
+    * one chunk is missing, then all of the subpackets that the chunk is
+    * made up of are also missing.
+    *
+    * When using an erasure code that supports subpackets, each chunk would be
+    * subdivided into S subpackets, and would look something like the following:
+    * Normal:
+    *   +---------------- coded object O ----------------------------------+
+    *   |+-------------------+ +-------------------+ +-------------------+ |
+    *   ||    chunk  0       | |    chunk  1       | |    chunk  2       | |
+    *   ||    [0,N)          | |    [N,2N)         | |    [2N,3N)        | |
+    *   |+-------------------+ +-------------------+ +-------------------+ |
+    *   +------------------------------------------------------------------+
+    * Subpackets:
+    *   +---------------- coded object O ----------------------------------+
+    *   |+-------------------+ +-------------------+ +-------------------+ |
+    *   || c0 | c0 | c0 | c0 | | c1 | c1 | c1 | c1 | | c2 | c2 | c2 | c2 | |
+    *   || s0 | s1 | s2 | s3 | | s0 | s1 | s2 | s3 | | s0 | s1 | s2 | s3 | |
+    *   |+-------------------+ +-------------------+ +-------------------+ |
+    *   +------------------------------------------------------------------+
+    *
+    * The returned map would contain a list of pairs of offsets, and lengths,
+    * corresponding to the correct offset and lengths of the subpackets, needed
+    * to decode the object. An example of this:
+    * An imaginary subpacket erasure coding plugin, requires 2 subpackets from
+    * each remaning chunk to recover a lost chunk. We have lost chunk 0, so from c1,
+    * subpackets s0 and s1, would be required. From c2, s0 and s1 would be required.
+    * Each chunk in this example is 4k bytes, so each subpacket would then be 1k,
+    * since we have 4 subpackets for each chunk. The map that would be returned
+    * here then would look like this:
+    * map(
+    *  [1, [(0, 1024), (1024, 1024)], //c1, s0 starts at 0, length 1024, s1: 1024, 1024
+    *  [2, [(0, 1024), (1024, 1024)]  //c2, s0 starts at 0, length 1024, s1: 1024, 1024
+    * )
+    *
+    * It should also be possible to simplify the returned map, if the subpackets are
+    * contiguous, so instead of the previous map, a simpler version could also be returned.
+    * map(
+    *  [1, [(0, 2048)], // From chunk 1 read the subpackets that are in the range 0, 2048
+    *  [2, [(0, 2048)]  // From chunk 2 read the subpacekts that are in the range 0, 2048
+    * )
+    *
+    * To properly calculate the length and offset of the needed subpackets, the
+    * full blocksize of one chunk would be needed.
+    *
+    * Returns 0 on success.
+    *
+    * The **minimum** argument must be a pointer to an empty set.
+    *
+    * @param [in] want_to_read chunk indexes to be decoded
+    * @param [in] available map chunk indexes containing valid data
+    * @param [out] minimum chunk indexes, and the subchunks to retrieve
+    * @return **0** on success or a negative errno on error.
+    */
 
+    virtual int minimum_to_decode_subpackets(const set<int> &want_to_read,
+                                            const set<int> &available_chunks,
+                                            map<int, list<pair<int, int>>> *minimum, int blocksize) = 0;
     /**
      * Encode the content of **in** and store the result in
      * **encoded**. All buffers pointed to by **encoded** have the
@@ -399,6 +460,35 @@ namespace ceph {
     virtual int decode_chunks(const set<int> &want_to_read,
                               const map<int, bufferlist> &chunks,
                               map<int, bufferlist> *decoded) = 0;
+
+
+      /**
+       * Decode the **subpackets** and store at least **want_to_read**
+       * chunks in **decoded**
+       *
+       * The **decoded** map must be a pointer to an empty map.
+       *
+       * There must be enough **subpackets** ( as returned by
+       * **minimum_to_decode_subpackets** to perform a successful
+       * decoding of all chunks listed in **want_to_read**.
+       *
+       * If a chunk is listed in **want_to_read** it will be reconstructed from
+       * the existing subpackets.
+       *
+       * The subpackets map contains a bufferlist, list pair that contains information
+       * about which parts of the bufferlist, the requested subpackets resides in. The list<pair<int, int>>
+       * must be the same as the list<pair<int, int>> returned from **minimum_to_decode_subpackets**
+       *
+       * The bufferlist must be the size of a full block/chunk, but may contain null-data in the
+       * areas where there are no required subpackets.
+       *
+       * 
+       */
+
+
+      virtual int decode_subpackets(const set<int> &want_to_read,
+                                    map<int, pair<bufferlist, list<pair<int, int>>>> &subpackets,
+                                    map<int, bufferlist> *decoded) = 0;
 
     /**
      * Return the ordered list of chunks or an empty vector

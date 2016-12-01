@@ -72,6 +72,14 @@ int ErasureCode::minimum_to_decode_with_cost(const set<int> &want_to_read,
   return minimum_to_decode(want_to_read, available_chunks, minimum);
 }
 
+int ErasureCode::minimum_to_decode_subpackets(const set<int> &want_to_read,
+                                             const set<int> &available_chunks,
+                                             map<int, list<pair<int, int>>> *minimum,
+                                             int blocksize)
+{
+  assert("ErasureCode::minimum_to_decode_subchunks not implemented" == 0);
+}
+
 int ErasureCode::encode_prepare(const bufferlist &raw,
                                 map<int, bufferlist> &encoded) const
 {
@@ -173,6 +181,13 @@ int ErasureCode::decode_chunks(const set<int> &want_to_read,
                                map<int, bufferlist> *decoded)
 {
   assert("ErasureCode::decode_chunks not implemented" == 0);
+}
+
+int ErasureCode::decode_subpackets(const set<int> &want_to_read,
+                  map<int, pair<bufferlist, list<pair<int, int>>>> &subpackets,
+                  map<int, bufferlist> *decoded)
+{
+  assert("ErasureCode::decode_subpackets not implemented" == 0);
 }
 
 int ErasureCode::parse(const ErasureCodeProfile &profile,
