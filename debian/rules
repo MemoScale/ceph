@@ -18,6 +18,8 @@ ifeq ($(DEB_HOST_ARCH), armel)
   extraopts += -DWITH_ATOMIC_OPS=OFF
 endif
 
+env
+
 %:
 	dh $@ --buildsystem=cmake --with javahelper,python2,python3,systemd --parallel
 
